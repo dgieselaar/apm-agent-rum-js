@@ -93,7 +93,8 @@ class Config {
       apiVersion: 2,
       context: {},
       session: false,
-      apmRequest: null
+      apmRequest: null,
+      sendCredentials: false
     }
 
     this.events = new EventHandler()
@@ -198,16 +199,22 @@ class Config {
    */
   validate(properties = {}) {
     const requiredKeys = ['serviceName', 'serverUrl']
+    const allKeys = Object.keys(this.config)
     const errors = {
       missing: [],
-      invalid: []
+      invalid: [],
+      unknown: []
     }
     /**
-     * Check when required keys are missing
+     * Check when required keys are missing or unknown keys found
      */
     Object.keys(properties).forEach(key => {
       if (requiredKeys.indexOf(key) !== -1 && !properties[key]) {
         errors.missing.push(key)
+      }
+
+      if (allKeys.indexOf(key) === -1) {
+        errors.unknown.push(key)
       }
     })
     /**

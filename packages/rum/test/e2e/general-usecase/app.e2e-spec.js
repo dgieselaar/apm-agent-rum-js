@@ -24,22 +24,23 @@
  */
 const {
   allowSomeBrowserErrors,
-  waitForApmServerCalls,
+  getLastServerCall,
   getBrowserFeatures
 } = require('../../../../../dev-utils/webdriver')
 
 describe('general-usercase', function () {
-  it('should run the general usecase', function () {
-    browser.url('/test/e2e/general-usecase/index.html')
-    browser.waitUntil(
-      () => {
-        return $('#test-element').getText() === 'Passed'
+  it('should run the general usecase', async () => {
+    await browser.url('/test/e2e/general-usecase/index.html')
+    await browser.waitUntil(
+      async () => {
+        const elem = await $('#test-element')
+        return (await elem.getText()) === 'Passed'
       },
       5000,
       'expected element #test-element'
     )
 
-    const { sendEvents } = waitForApmServerCalls(1, 1)
+    const { sendEvents } = await getLastServerCall(1, 1)
     const { transactions, errors } = sendEvents
 
     expect(errors.length).toBe(1)
@@ -82,22 +83,25 @@ describe('general-usercase', function () {
     return allowSomeBrowserErrors(['timeout test error with a secret'])
   })
 
-  it('should capture history.pushState', function () {
+  it('should capture history.pushState', async () => {
     /**
      * The query string is only used to make url different to the previous test,
      * Otherwise, both tests will run in the same window.
      */
 
-    browser.url('/test/e2e/general-usecase/index.html?run=pushState#test-state')
-    browser.waitUntil(
-      () => {
-        return $('#test-element').getText() === 'Passed'
+    await browser.url(
+      '/test/e2e/general-usecase/index.html?run=pushState#test-state'
+    )
+    await browser.waitUntil(
+      async () => {
+        const elem = await $('#test-element')
+        return (await elem.getText()) === 'Passed'
       },
       5000,
       'expected element #test-element'
     )
 
-    const { sendEvents } = waitForApmServerCalls(0, 1)
+    const { sendEvents } = await getLastServerCall(0, 1)
     const { transactions } = sendEvents
     expect(transactions.length).toBe(1)
     const transactionPayload = transactions[0]
@@ -108,40 +112,50 @@ describe('general-usercase', function () {
     expect(transactionPayload.spans.length).toBeGreaterThanOrEqual(3)
   })
 
-  it('should capture click user interaction', function () {
-    let features = getBrowserFeatures()
+  it('should capture click user interaction', async () => {
+    let features = await getBrowserFeatures()
     if (features.EventTarget) {
-      browser.url('/test/e2e/general-usecase/index.html')
-      browser.waitUntil(
-        () => {
-          return $('#test-element').getText() === 'Passed'
+      await browser.url('/test/e2e/general-usecase/index.html')
+      await browser.waitUntil(
+        async () => {
+          const elem = await $('#test-element')
+          return (await elem.getText()) === 'Passed'
         },
         5000,
         'expected element #test-element'
       )
-      const actionButton = $('#test-action')
-      actionButton.click()
-      const { sendEvents } = waitForApmServerCalls(0, 2)
-      const { transactions } = sendEvents
-      expect(transactions.length).toEqual(2)
-      const clickTransaction = transactions[1]
+
+      let result = await getLastServerCall(0, 1)
+      const [pageLoadTransaction] = result.sendEvents.transactions
+
+      expect(pageLoadTransaction.type).toBe('page-load')
+
+      // we should wait until load transaction finishes before
+      // triggering the user interaction logic
+      const actionButton = await $('#test-action')
+      await actionButton.click()
+
+      result = await getLastServerCall(0, 1)
+      const [clickTransaction] = result.sendEvents.transactions
+
       expect(clickTransaction.type).toBe('user-interaction')
       expect(clickTransaction.name).toBe('Click - button["test-action"]')
       expect(clickTransaction.spans.length).toBeGreaterThanOrEqual(1)
     }
   })
 
-  it('should capture session', function () {
-    browser.url('/test/e2e/general-usecase/index.html')
-    browser.waitUntil(
-      () => {
-        return $('#test-element').getText() === 'Passed'
+  it('should capture session', async () => {
+    await browser.url('/test/e2e/general-usecase/index.html')
+    await browser.waitUntil(
+      async () => {
+        const elem = await $('#test-element')
+        return (await elem.getText()) === 'Passed'
       },
       5000,
       'expected element #test-element'
     )
 
-    const { sendEvents } = waitForApmServerCalls(0, 1)
+    const { sendEvents } = await getLastServerCall(0, 1)
     const { transactions } = sendEvents
 
     expect(transactions.length).toBe(1)

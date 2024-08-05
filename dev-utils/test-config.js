@@ -40,7 +40,7 @@ function getTestEnvironmentVariables() {
     branch: process.env.BRANCH_NAME,
     mode: process.env.MODE,
     sauceLabs: process.env.MODE && process.env.MODE.startsWith('saucelabs'),
-    isJenkins: process.env.JENKINS_URL,
+    isCI: process.env.CI,
     serverUrl: process.env.APM_SERVER_URL || DEFAULT_APM_SERVER_URL,
     mockBackendUrl: 'http://localhost:8003',
     stackVersion: process.env.STACK_VERSION || ''
@@ -91,7 +91,7 @@ function getDefaultBrowsers() {
     },
     {
       browserName: 'internet explorer',
-      platformName: 'Windows 8.1',
+      platformName: 'Windows 10',
       browserVersion: '11'
     },
     {
@@ -156,6 +156,12 @@ function getBrowserList(pkg = 'default') {
   let browsers = []
   if (pkg === 'default') {
     browsers = getDefaultBrowsers()
+  } else if (pkg === 'react') {
+    // react router 6 doesn't support IE 11, we get rid of it
+    // https://github.com/remix-run/react-router/issues/8220#issuecomment-961326123
+    return getDefaultBrowsers().filter(
+      browser => browser.browserName != 'internet explorer'
+    )
   } else if (pkg === 'vue') {
     // Vue 3 dropped support for IE 11 and older browsers,
     // so we use modern browsers ro run the tests
@@ -166,8 +172,12 @@ function getBrowserList(pkg = 'default') {
       },
       {
         browserName: 'firefox',
-        browserVersion: 'latest',
-        platformName: 'Windows 10'
+        // beware that if we update to 99 or more we will need to cope with https://github.com/karma-runner/karma-sauce-launcher/issues/275
+        browserVersion: '98',
+        platformName: 'Windows 10',
+        'sauce:options': {
+          geckodriverVersion: '0.30.0' // reason: https://github.com/karma-runner/karma-sauce-launcher/issues/275
+        }
       }
     ]
   }

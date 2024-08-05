@@ -42,20 +42,18 @@ describe('Breakdown metrics', () => {
    */
   function getBreakdownObj(breakdowns) {
     let spanBreakdown = {}
-    if (breakdowns.length > 2) {
-      for (let i = 2; i < breakdowns.length; i++) {
-        const { span, samples } = breakdowns[i]
-        let key = span.type
-        if (typeof span.subtype !== 'undefined') {
-          key += '.' + span.subtype
-        }
-        spanBreakdown[key] = samples
+    for (let i = 0; i < breakdowns.length; i++) {
+      const { span, samples } = breakdowns[i]
+      let key = span.type
+      if (typeof span.subtype !== 'undefined') {
+        key += '.' + span.subtype
       }
+      spanBreakdown[key] = samples
     }
+
     return {
       details: breakdowns[0].transaction,
-      transaction: breakdowns[0].samples,
-      app: breakdowns[1].samples,
+      app: breakdowns[0].samples,
       ...spanBreakdown
     }
   }
@@ -73,55 +71,13 @@ describe('Breakdown metrics', () => {
       'Load'
     ]
 
-    const spans = breakdown.slice(1)
-
     spanTypes.forEach((type, index) => {
-      const breakdownSpan = spans[index]
+      const breakdownSpan = breakdown[index]
       expect(breakdownSpan.span.type).toBe(type)
       expect(breakdownSpan.samples['span.self_time.count'].value).toBe(1)
       expect(
         breakdownSpan.samples['span.self_time.sum.us'].value
       ).toBeGreaterThan(0)
-    })
-  })
-
-  it('set transaction breakdown count based on sampled flag', () => {
-    const tr = createTransaction('sampled')
-    const sampledBreakdown = captureBreakdown(tr)
-    expect(sampledBreakdown[0].samples['transaction.breakdown.count']).toEqual({
-      value: 1
-    })
-
-    tr.sampled = false
-    const unsampledBreakdown = captureBreakdown(tr)
-    expect(
-      unsampledBreakdown[0].samples['transaction.breakdown.count']
-    ).toEqual({
-      value: 0
-    })
-  })
-
-  it('breakdown with only transaction', () => {
-    const tr = createTransaction('custom')
-    tr.end(20)
-    const breakdown = getBreakdownObj(captureBreakdown(tr))
-
-    expect(breakdown.details).toEqual({
-      name: 'trname',
-      type: 'custom'
-    })
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 20 },
-      'transaction.breakdown.count': { value: 1 }
-    })
-    expect(breakdown.app).toEqual({
-      'span.self_time.count': {
-        value: 1
-      },
-      'span.self_time.sum.us': {
-        value: 20
-      }
     })
   })
 
@@ -132,20 +88,14 @@ describe('Breakdown metrics', () => {
     tr.end(40)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
 
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 40 },
-      'transaction.breakdown.count': { value: 1 }
-    })
-
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 20 }
+      'span.self_time.sum.us': { value: 20000 }
     })
 
     expect(breakdown['bar.baz']).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 20 }
+      'span.self_time.sum.us': { value: 20000 }
     })
   })
 
@@ -156,15 +106,9 @@ describe('Breakdown metrics', () => {
     tr.end(30)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
 
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 30 },
-      'transaction.breakdown.count': { value: 1 }
-    })
-
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 2 },
-      'span.self_time.sum.us': { value: 30 }
+      'span.self_time.sum.us': { value: 30000 }
     })
   })
 
@@ -176,18 +120,13 @@ describe('Breakdown metrics', () => {
     sp2.end(40)
     tr.end(50)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 50 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 30 }
+      'span.self_time.sum.us': { value: 30000 }
     })
     expect(breakdown['ext.http']).toEqual({
       'span.self_time.count': { value: 2 },
-      'span.self_time.sum.us': { value: 40 }
+      'span.self_time.sum.us': { value: 40000 }
     })
   })
 
@@ -199,18 +138,13 @@ describe('Breakdown metrics', () => {
     sp2.end(25)
     tr.end(30)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 30 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 15 }
+      'span.self_time.sum.us': { value: 15000 }
     })
     expect(breakdown['ext.http']).toEqual({
       'span.self_time.count': { value: 2 },
-      'span.self_time.sum.us': { value: 20 }
+      'span.self_time.sum.us': { value: 20000 }
     })
   })
 
@@ -224,19 +158,13 @@ describe('Breakdown metrics', () => {
     sp3.end(40)
     tr.end(40)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 40 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 10 }
+      'span.self_time.sum.us': { value: 10000 }
     })
     expect(breakdown['ext.http']).toEqual({
       'span.self_time.count': { value: 3 },
-      'span.self_time.sum.us': { value: 30 }
+      'span.self_time.sum.us': { value: 30000 }
     })
   })
 
@@ -248,19 +176,13 @@ describe('Breakdown metrics', () => {
     sp2.end(30)
     tr.end(30)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 30 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
       'span.self_time.sum.us': { value: 0 }
     })
     expect(breakdown['ext.http']).toEqual({
       'span.self_time.count': { value: 2 },
-      'span.self_time.sum.us': { value: 30 }
+      'span.self_time.sum.us': { value: 30000 }
     })
   })
 
@@ -272,22 +194,17 @@ describe('Breakdown metrics', () => {
     sp2.end(25)
     tr.end(30)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 30 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 10 }
+      'span.self_time.sum.us': { value: 10000 }
     })
     expect(breakdown['foo']).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 15 }
+      'span.self_time.sum.us': { value: 15000 }
     })
     expect(breakdown['bar']).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 10 }
+      'span.self_time.sum.us': { value: 10000 }
     })
   })
 
@@ -297,18 +214,13 @@ describe('Breakdown metrics', () => {
     tr.end(30)
     sp1.end(40)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 30 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 20 }
+      'span.self_time.sum.us': { value: 20000 }
     })
     expect(breakdown['ext.http']).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 10 }
+      'span.self_time.sum.us': { value: 10000 }
     })
   })
 
@@ -320,18 +232,13 @@ describe('Breakdown metrics', () => {
     tr.end(30)
     sp1.end(35)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 30 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 10 }
+      'span.self_time.sum.us': { value: 10000 }
     })
     expect(breakdown['ext.http']).toEqual({
       'span.self_time.count': { value: 2 },
-      'span.self_time.sum.us': { value: 25 }
+      'span.self_time.sum.us': { value: 25000 }
     })
   })
 
@@ -343,18 +250,13 @@ describe('Breakdown metrics', () => {
     sp2.end(30)
     tr.end(50)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 50 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 30 }
+      'span.self_time.sum.us': { value: 30000 }
     })
     expect(breakdown['ext.http']).toEqual({
       'span.self_time.count': { value: 2 },
-      'span.self_time.sum.us': { value: 25 }
+      'span.self_time.sum.us': { value: 25000 }
     })
   })
 
@@ -364,15 +266,9 @@ describe('Breakdown metrics', () => {
     sp1.end(20)
     tr.end(30)
     const breakdown = getBreakdownObj(captureBreakdown(tr))
-
-    expect(breakdown.transaction).toEqual({
-      'transaction.duration.count': { value: 1 },
-      'transaction.duration.sum.us': { value: 30 },
-      'transaction.breakdown.count': { value: 1 }
-    })
     expect(breakdown.app).toEqual({
       'span.self_time.count': { value: 1 },
-      'span.self_time.sum.us': { value: 30 }
+      'span.self_time.sum.us': { value: 30000 }
     })
 
     expect(breakdown['ext.http']).toBeUndefined()
@@ -385,7 +281,6 @@ describe('Breakdown metrics', () => {
     tr.end()
 
     const breakdown = captureBreakdown(tr)
-    expect(breakdown.length).toBe(1)
-    expect(breakdown[0].samples['transaction.breakdown.count'].value).toBe(0)
+    expect(breakdown.length).toBe(0)
   })
 })

@@ -29,6 +29,92 @@ See Conventional Commits (https://conventionalcommits.org) for commit guidelines
 [[release-notes-5.x]]
 === RUM JS Agent version 5.x
 
+
+[[release-notes-5.16.1]]
+==== 5.16.1 (2024-06-27)
+[float]
+===== Bug fixes
+* User interaction click transactions will report correct transaction names for IE11 {pull}1511[#1511]
+
+
+[[release-notes-5.16.0]]
+==== 5.16.0 (2023-12-27)
+[float]
+===== Features
+* Add Support for https://web.dev/articles/inp[Interaction to Next Paint (INP) metric]. This new metric, which replaces FID, will be available in the User Experience App from version 8.12.0 of the Elastic Stack. {pull}1462[#1462]
+
+[[release-notes-5.15.0]]
+==== 5.15.0 (2023-09-27)
+[float]
+===== Potentially breaking changes
+* Previously, there was a start time discrepancy between sampled and unsampled page load transactions, which was wrong. From now on,
+the agent will set the same start time for both of them.
+
+Custom dashboards built using the page load duration will see an effect with the solution: {pull}1435[#1435]
+
+===== Features
+* Capture errors from objects thrown from the promise rejection events including the `reason and custom properties`: {pull}1428[#1428]
+
+[[release-notes-5.14.0]]
+==== 5.14.0 (2023-08-03)
+[float]
+===== Features
+* Add redirect span to the page-load transaction: {pull}1400[#1400]
+
+===== Bug fixes
+* Fetch API instrumentation now handles requests with `URL` objects. {pull}1398[#1398]
+
+[[release-notes-5.13.0]]
+==== 5.13.0 (2023-07-19)
+[float]
+===== Potentially breaking changes
+* Previously, breakdown timings were reported as milliseconds values in the `span.self_time.sum.us` field, which was wrong. From now on, it will be reported as microsecond values to match the APM specification: {pull}1381[#1381]
+* The metrics `transaction.duration.sum.us`, `transaction.duration.count` and `transaction.breakdown.count` are no longer recorded: {pull}1382[#1382]
+
+===== Features
+* Support for Angular 16 is made available via `@elastic/apm-rum-angular@3.0.0`: {pull}1380[#1380]
+* Improve user-interaction transactions naming. Unsupported browsers: IE11 {pull}1390[#1390]
+* Add `apmRequest` and `sendCredentials` config to TypeScript typings: {pull}1254[#1254] {pull}1243[#1243]
+
+===== Bug fixes
+* Fix warnings where performance entries are not supported: {pull}1246[#1246]
+
+[[release-notes-5.12.0]]
+==== 5.12.0 (2022-06-14)
+[float]
+===== Features
+* Introduce new config option <<send-credentials, `sendCredentials`>>. This allows the agent to send cookies to APM servers
+that are behind reverse proxies that need requests to be authenticated: {pull}1238[#1238]
+* Agent now warns users if they provide non-existent config options when initializing it: {pull}1230[#1230]
+
+===== Bug fixes
+* Capture the stacktrace of a SyntaxError triggered because of a malformed JavaScript code. Before this fix the agent was capturing an empty stacktrace: {pull}1239[#1239]
+
+[[release-notes-5.11.1]]
+==== 5.11.1 (2022-05-16)
+[float]
+===== Features
+* Span's outcome is now set to `Unknown` when a Fetch/XHR request is aborted. The outcome can be found in the metadata information of the span details in APM UI: {pull}1211[#1211]
+* Allow users the ability to disable compression for the events sent to APM server. This is helpful for debugging purposes while inspecting via Devtools and also for generating HAR file. Please see our <<disable-events-payload-compression, troubleshooting>> guide for more information: {pull}1214[#1214]
+
+===== Bug fixes
+* The instrumentation of fetch API consumes a response as a readable stream properly. Before this fix the related span was being ended on the start of the response rather than on the end of it: {pull}1213[#1213]
+* Agent now can listen to all click events on the page. Users can enable/disable click instrumentation via `disableInstrumentation: ["click"]`. `eventtarget` instrumentation flag will be deprecated in favor of `click` and will be removed in the future releases: {pull}1219[#1219]
+
+[[release-notes-5.11.0]]
+==== 5.11.0 (2022-04-20)
+[float]
+===== Features
+* Events are now beaconed when the user abandons or backgrounds the page, this makes sure the agent never miss an event. Before this change it was only sending them every interval configurable via `flushInterval`. Unsupported browsers: Firefox, IE11: {pull}1146[#1146]
+
+NOTE: Transactions based on the <<supported-technologies,supported technologies>> and <<custom-managed-transactions, custom managed transactions>> are the only ones taken into account.
+
+* **rum-vue:** Introduce script setup syntax support: {issue}1194[#1194]
+* Override reuse threshold when redefining a transaction. This will permit the agent not to miss data on slow network connections: {issue}1196[#1196]
+
+===== Bug fixes
+* Report Largest Contentful Paint (LCP) properly. Before this fix the agent was not giving the browser enough time to capture LCP entries that are post on-load: {pull}1190[#1190]
+
 [[release-notes-5.10.2]]
 ==== 5.10.2 (2022-02-03)
 [float]

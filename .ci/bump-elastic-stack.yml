@@ -1,0 +1,71 @@
+---
+name: Bump elastic stack to latest version
+
+actions:
+  default:
+    title: '[updatecli] Bump elastic stack version to {{ source "latestRelease" }}'
+    kind: github/pullrequest
+    spec:
+      labels:
+        - dependencies
+    scmid: default
+
+scms:
+  default:
+    kind: github
+    spec:
+      user: '{{ requiredEnv "GITHUB_ACTOR" }}'
+      owner: elastic
+      repository: apm-agent-rum-js
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "GITHUB_ACTOR" }}'
+      branch: main
+      commitusingapi: true
+
+sources:
+  latestRelease:
+    name: Get Latest Elastic Release
+    kind: githubrelease
+    transformers:
+      - trimprefix: v
+    spec:
+      owner: elastic
+      repository: elasticsearch
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "GITHUB_ACTOR" }}'
+      versionfilter:
+        kind: regex
+        pattern: ^v8\.(\d+)\.(\d+)$
+
+conditions:
+  dockerTag:
+    name: Is docker image elasticsearch:{{ source "latestRelease" }} published
+    kind: dockerimage
+    spec:
+      image: elasticsearch
+      tag: '{{ source "latestRelease" }}'
+    sourceid: latestRelease
+
+targets:
+
+  update-ci-workflow:
+    name: 'Update elastic stack version to {{ source "latestRelease" }}'
+    sourceid: latestRelease
+    scmid: default
+    kind: file
+    spec:
+      file: .github/workflows/ci.yml
+      content: >-
+        '{{ source `latestRelease` }}'
+      matchpattern: \'[0-9]+\.[0-9]+\.[0-9]+\'
+
+  update-microbenchmark-workflow:
+    name: 'Update elastic stack version to {{ source "latestRelease" }}'
+    sourceid: latestRelease
+    scmid: default
+    kind: file
+    spec:
+      file: .github/workflows/microbenchmark.yml
+      content: >-
+        '{{ source `latestRelease` }}'
+      matchpattern: \'[0-9]+\.[0-9]+\.[0-9]+\'

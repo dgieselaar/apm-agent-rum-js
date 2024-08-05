@@ -328,18 +328,27 @@ function removeInvalidChars(key) {
   return key.replace(/[.*"]/g, '_')
 }
 
-function getLatestNonXHRSpan(spans) {
+function getLatestSpan(spans, typeFilter) {
   let latestSpan = null
   for (let i = 0; i < spans.length; i++) {
     const span = spans[i]
     if (
-      String(span.type).indexOf('external') === -1 &&
+      typeFilter &&
+      typeFilter(span.type) &&
       (!latestSpan || latestSpan._end < span._end)
     ) {
       latestSpan = span
     }
   }
   return latestSpan
+}
+
+function getLatestNonXHRSpan(spans) {
+  return getLatestSpan(spans, type => String(type).indexOf('external') === -1)
+}
+
+function getLatestXHRSpan(spans) {
+  return getLatestSpan(spans, type => String(type).indexOf('external') !== -1)
 }
 
 function getEarliestSpan(spans) {
@@ -392,6 +401,45 @@ function isPerfTypeSupported(type) {
   )
 }
 
+function isPerfInteractionCountSupported() {
+  return 'interactionCount' in performance
+}
+
+/**
+ * The goal of this is to make sure that HAR files
+ * can be created containing beacons with the payload readable
+ */
+function isBeaconInspectionEnabled() {
+  const flagName = '_elastic_inspect_beacon_'
+
+  if (sessionStorage.getItem(flagName) != null) {
+    return true
+  }
+
+  if (!window.URL || !window.URLSearchParams) {
+    return false
+  }
+
+  try {
+    const parsedUrl = new URL(window.location.href)
+    const isFlagSet = parsedUrl.searchParams.has(flagName)
+    if (isFlagSet) {
+      sessionStorage.setItem(flagName, true)
+    }
+
+    return isFlagSet
+  } catch (e) {
+    // Ignore error since this is not intended to be used by users
+  }
+
+  return false
+}
+
+// redirect info is only available for same-origin redirects
+function isRedirectInfoAvailable(timing) {
+  return timing.redirectStart > 0
+}
+
 export {
   extend,
   merge,
@@ -414,6 +462,7 @@ export {
   generateRandomId,
   getEarliestSpan,
   getLatestNonXHRSpan,
+  getLatestXHRSpan,
   getDuration,
   getTime,
   now,
@@ -429,5 +478,8 @@ export {
   PERF,
   isPerfTimelineSupported,
   isBrowser,
-  isPerfTypeSupported
+  isPerfTypeSupported,
+  isPerfInteractionCountSupported,
+  isBeaconInspectionEnabled,
+  isRedirectInfoAvailable
 }

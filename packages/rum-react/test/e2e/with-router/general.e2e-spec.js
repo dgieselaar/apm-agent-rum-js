@@ -25,23 +25,24 @@
 
 const {
   allowSomeBrowserErrors,
-  waitForApmServerCalls,
+  getLastServerCall,
   getBrowserInfo
 } = require('../../../../../dev-utils/webdriver')
 
 describe('General usecase with react-router', function () {
   beforeAll(() => browser.url('/test/e2e/with-router/'))
 
-  it('should run the react app', function () {
-    browser.waitUntil(
-      () => {
-        return $('#test-element').getText() === 'Passed'
+  it('should run the react app', async () => {
+    await browser.waitUntil(
+      async () => {
+        const elem = await $('#test-element')
+        return (await elem.getText()) === 'Passed'
       },
       5000,
       'expected element #test-element'
     )
 
-    const { sendEvents } = waitForApmServerCalls(0, 1)
+    const { sendEvents } = await getLastServerCall(0, 1)
     const { transactions } = sendEvents
 
     expect(transactions.length).toBe(1)
@@ -65,28 +66,24 @@ describe('General usecase with react-router', function () {
     return allowSomeBrowserErrors()
   })
 
-  it('should capture resoure and user timing spans for soft navigation', () => {
-    browser.waitUntil(
-      () => {
+  it('should capture resource and user timing spans for soft navigation', async () => {
+    await browser.waitUntil(
+      async () => {
         /**
          * Click a link to trigger the rendering of lazy navigation
          */
-        $('#manual').click()
-        const componentContainer = $('#manual-container')
-        return componentContainer.getText().indexOf('Manual') !== -1
+        await $('#manual').click()
+        const componentContainer = await $('#manual-container')
+        return (await componentContainer.getText()).indexOf('Manual') !== -1
       },
       5000,
       'expected manual component to be rendered'
     )
 
-    const { sendEvents } = waitForApmServerCalls(0, 2)
+    const { sendEvents } = await getLastServerCall(0, 1)
     const { transactions } = sendEvents
 
-    const pageLoadTransaction = transactions[0]
-    expect(pageLoadTransaction.type).toBe('page-load')
-    expect(pageLoadTransaction.name).toBe('/home')
-
-    const routeTransaction = transactions[1]
+    const routeTransaction = transactions[0]
     expect(routeTransaction.name).toBe('ManualComponent')
     expect(routeTransaction.type).toBe('component')
 

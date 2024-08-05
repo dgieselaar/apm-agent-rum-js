@@ -25,13 +25,20 @@
 
 import {
   getInstrumentationFlags,
+  PAGE_LOAD_DELAY,
   PAGE_LOAD,
   ERROR,
   CONFIG_SERVICE,
   LOGGING_SERVICE,
   TRANSACTION_SERVICE,
+  PERFORMANCE_MONITORING,
+  ERROR_LOGGING,
   APM_SERVER,
-  observePageVisibility
+  EVENT_TARGET,
+  CLICK,
+  observePageVisibility,
+  observePageClicks,
+  observeUserInteractions
 } from '@elastic/apm-rum-core'
 
 export default class ApmBase {
@@ -65,7 +72,7 @@ export default class ApmBase {
       /**
        * Set Agent version to be sent as part of metadata to the APM Server
        */
-      configService.setVersion('5.10.2')
+      configService.setVersion('5.16.1')
       this.config(config)
       /**
        * Set level here to account for both active and inactive cases
@@ -85,12 +92,12 @@ export default class ApmBase {
         )
 
         const performanceMonitoring = this.serviceFactory.getService(
-          'PerformanceMonitoring'
+          PERFORMANCE_MONITORING
         )
         performanceMonitoring.init(flags)
 
         if (flags[ERROR]) {
-          const errorLogging = this.serviceFactory.getService('ErrorLogging')
+          const errorLogging = this.serviceFactory.getService(ERROR_LOGGING)
           errorLogging.registerListeners()
         }
 
@@ -116,6 +123,10 @@ export default class ApmBase {
         }
 
         observePageVisibility(configService, transactionService)
+        if (flags[EVENT_TARGET] && flags[CLICK]) {
+          observePageClicks(transactionService)
+        }
+        observeUserInteractions()
       } else {
         this._disable = true
         loggingService.warn('RUM agent is inactive')
@@ -183,8 +194,13 @@ export default class ApmBase {
 
     tr.addTask(PAGE_LOAD)
     const sendPageLoadMetrics = () => {
-      // to make sure PerformanceTiming.loadEventEnd has a value
-      setTimeout(() => tr.removeTask(PAGE_LOAD))
+      // The reasons of this timeout are:
+      // 1. to make sure PerformanceTiming.loadEventEnd has a value.
+      // 2. to make sure the agent intercepts all the LCP entries triggered by the browser (adding a delay in the timeout).
+      // The browser might need more time after the pageload event to render other elements (e.g. images).
+      // That's important because a LCP is only triggered when the related element is completely rendered.
+      // https://w3c.github.io/largest-contentful-paint/#sec-add-lcp-entry
+      setTimeout(() => tr.removeTask(PAGE_LOAD), PAGE_LOAD_DELAY)
     }
 
     if (document.readyState === 'complete') {
@@ -205,21 +221,31 @@ export default class ApmBase {
    *
    * validation error format
    * {
-   *  missing: [ 'key1', 'key2']
+   *  missing: [ 'key1', 'key2'],
    *  invalid: [{
    *    key: 'a',
    *    value: 'abcd',
    *    allowed: 'string'
-   *  }]
+   *  }],
+   *  unknown: ['key3', 'key4']
    * }
    */
   config(config) {
-    const configService = this.serviceFactory.getService(CONFIG_SERVICE)
-    const { missing, invalid } = configService.validate(config)
+    const [configService, loggingService] = this.serviceFactory.getService([
+      CONFIG_SERVICE,
+      LOGGING_SERVICE
+    ])
+    const { missing, invalid, unknown } = configService.validate(config)
+    if (unknown.length > 0) {
+      const message =
+        'Unknown config options are specified for RUM agent: ' +
+        unknown.join(', ')
+      loggingService.warn(message)
+    }
+
     if (missing.length === 0 && invalid.length === 0) {
       configService.setConfig(config)
     } else {
-      const loggingService = this.serviceFactory.getService(LOGGING_SERVICE)
       const separator = ', '
       let message = "RUM agent isn't correctly configured. "
 
@@ -292,7 +318,7 @@ export default class ApmBase {
 
   captureError(error) {
     if (this.isEnabled()) {
-      var errorLogging = this.serviceFactory.getService('ErrorLogging')
+      var errorLogging = this.serviceFactory.getService(ERROR_LOGGING)
       return errorLogging.logError(error)
     }
   }

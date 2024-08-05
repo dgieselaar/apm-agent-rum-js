@@ -30,20 +30,22 @@ import {
   captureObserverEntries,
   metrics,
   createTotalBlockingTimeSpan
-} from './metrics'
+} from './metrics/metrics'
 import {
   extend,
   getEarliestSpan,
   getLatestNonXHRSpan,
+  getLatestXHRSpan,
   isPerfTypeSupported,
   generateRandomId
 } from '../common/utils'
-import { captureNavigation } from './capture-navigation'
+import { captureNavigation } from './navigation/capture-navigation'
 import {
   PAGE_LOAD,
   NAME_UNKNOWN,
   TRANSACTION_START,
   TRANSACTION_END,
+  TRANSACTION_IGNORE,
   TEMPORARY_TYPE,
   TRANSACTION_TYPE_ORDER,
   LARGEST_CONTENTFUL_PAINT,
@@ -52,7 +54,8 @@ import {
   TRUNCATED_TYPE,
   FIRST_INPUT,
   LAYOUT_SHIFT,
-  SESSION_TIMEOUT
+  SESSION_TIMEOUT,
+  PAGE_LOAD_DELAY
 } from '../common/constants'
 import { addTransactionContext } from '../common/context'
 import { __DEV__, state } from '../state'
@@ -250,13 +253,13 @@ class TransactionService {
       () => {
         const { name, type } = tr
         let { lastHiddenStart } = state
-
         if (lastHiddenStart >= tr._start) {
           if (__DEV__) {
             this._logger.debug(
               `transaction(${tr.id}, ${name}, ${type}) was discarded! The page was hidden during the transaction!`
             )
           }
+          this._config.dispatchEvent(TRANSACTION_IGNORE)
           return
         }
 
@@ -266,6 +269,7 @@ class TransactionService {
               `transaction(${tr.id}, ${name}, ${type}) is ignored`
             )
           }
+          this._config.dispatchEvent(TRANSACTION_IGNORE)
           return
         }
 
@@ -408,20 +412,39 @@ class TransactionService {
       transaction._start = earliestSpan._start
     }
 
-    /**
-     * Adjust end time of the transaction to match the latest
-     * span end time
-     */
-    const latestSpan = getLatestNonXHRSpan(spans)
-    if (latestSpan && latestSpan._end > transaction._end) {
-      transaction._end = latestSpan._end
+    const latestSpan = getLatestNonXHRSpan(spans) || {}
+    const latestSpanEnd = latestSpan._end || 0
+
+    // Before ending the page-load transaction we are adding a delay to monitor events such as LCP and network requests.
+    // We need to make sure that we are not adding that extra time to the transaction end time
+    // if nothing has been monitored or if the last monitored event end time is less than the delay.
+    if (transaction.type === PAGE_LOAD) {
+      const transactionEndWithoutDelay = transaction._end - PAGE_LOAD_DELAY
+      const lcp = metrics.lcp || 0
+      const latestXHRSpan = getLatestXHRSpan(spans) || {}
+      const latestXHRSpanEnd = latestXHRSpan._end || 0
+
+      transaction._end = Math.max(
+        latestSpanEnd,
+        latestXHRSpanEnd,
+        lcp,
+        transactionEndWithoutDelay
+      )
+    } else if (latestSpanEnd > transaction._end) {
+      /**
+       * Adjust end time of the transaction to match the span end value
+       */
+      transaction._end = latestSpanEnd
     }
 
-    /**
-     * Set all spans that are longer than the transaction to
-     * be truncated spans
-     */
-    const transactionEnd = transaction._end
+    this.truncateSpans(spans, transaction._end)
+  }
+
+  /**
+   * Set all spans that are longer than the transaction to
+   * be truncated spans
+   */
+  truncateSpans(spans, transactionEnd) {
     for (let i = 0; i < spans.length; i++) {
       const span = spans[i]
       if (span._end > transactionEnd) {

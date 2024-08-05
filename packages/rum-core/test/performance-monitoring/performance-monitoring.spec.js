@@ -40,7 +40,6 @@ import {
   FETCH,
   XMLHTTPREQUEST,
   HISTORY,
-  EVENT_TARGET,
   PAGE_LOAD,
   ROUTE_CHANGE,
   TRANSACTION_END,
@@ -49,7 +48,9 @@ import {
   TRANSACTION_SERVICE,
   LOGGING_SERVICE,
   CONFIG_SERVICE,
-  APM_SERVER
+  APM_SERVER,
+  PERFORMANCE_MONITORING,
+  TRANSACTION_IGNORE
 } from '../../src/common/constants'
 import { state } from '../../src/state'
 import patchEventHandler from '../common/patch'
@@ -72,7 +73,7 @@ describe('PerformanceMonitoring', function () {
     configService.setConfig(agentConfig)
 
     apmServer = serviceFactory.getService(APM_SERVER)
-    performanceMonitoring = serviceFactory.getService('PerformanceMonitoring')
+    performanceMonitoring = serviceFactory.getService(PERFORMANCE_MONITORING)
   })
 
   it('should send performance monitoring data to apm-server', function (done) {
@@ -153,7 +154,7 @@ describe('PerformanceMonitoring', function () {
 
   it('should initialize and notify the transaction has been added to the queue', async () => {
     performanceMonitoring.init()
-    spyOn(configService, 'dispatchEvent')
+    spyOn(configService, 'dispatchEvent').and.callThrough()
 
     const tr = performanceMonitoring._transactionService.startTransaction(
       'transaction',
@@ -193,6 +194,16 @@ describe('PerformanceMonitoring', function () {
     expect(payload.spans[0].type).toBe('span1type')
     expect(payload.spans[0].start).toBe(parseInt(span._start - tr._start))
     expect(payload.spans[0].duration).toBe(parseInt(span._end - span._start))
+  })
+
+  it('should notify when a transaction has been filtered out', function () {
+    spyOn(configService, 'dispatchEvent')
+    var tr = new Transaction('transaction-no-duration', 'transaction-type')
+    tr.end()
+
+    var payload = performanceMonitoring.createTransactionPayload(tr)
+    expect(payload).toBeUndefined()
+    expect(configService.dispatchEvent).toHaveBeenCalledWith(TRANSACTION_IGNORE)
   })
 
   it('should sendPageLoadMetrics', function (done) {
@@ -608,6 +619,18 @@ describe('PerformanceMonitoring', function () {
     return task
   }
 
+  function createFetchTask(method, url) {
+    let task = {
+      source: FETCH,
+      data: {
+        target: new Request(url),
+        method,
+        url
+      }
+    }
+    return task
+  }
+
   it('should create http-request transaction if no current transaction exist', done => {
     const transactionService = serviceFactory.getService(TRANSACTION_SERVICE)
     spyOn(transactionService, 'startTransaction').and.callThrough()
@@ -772,164 +795,6 @@ describe('PerformanceMonitoring', function () {
     expect(logger.debug).not.toHaveBeenCalled()
   })
 
-  if (window.EventTarget) {
-    it('should create click transactions', () => {
-      const transactionService = performanceMonitoring._transactionService
-      let etsub = performanceMonitoring.getEventTargetSub()
-      const cancelEventTargetSub = patchEventHandler.observe(
-        EVENT_TARGET,
-        (event, task) => {
-          etsub(event, task)
-        }
-      )
-      let element = document.createElement('button')
-      element.setAttribute('class', 'cool-button purchase-style')
-
-      element.addEventListener('click', e => {
-        expect(e.type).toBe('click')
-      })
-      element.click()
-
-      let tr = transactionService.getCurrentTransaction()
-      expect(tr).toBeDefined()
-      expect(tr.name).toBe('Click - button')
-      expect(tr.context.custom).toEqual({
-        classes: 'cool-button purchase-style'
-      })
-      expect(tr.type).toBe('user-interaction')
-
-      element.setAttribute('name', 'purchase')
-      element.click()
-      let newTr = transactionService.getCurrentTransaction()
-
-      expect(newTr).toBe(tr)
-      expect(newTr.name).toBe('Click - button["purchase"]')
-      cancelEventTargetSub()
-    })
-
-    it('should create click transactions on window', () => {
-      const transactionService = performanceMonitoring._transactionService
-      let etsub = performanceMonitoring.getEventTargetSub()
-      const cancelEventTargetSub = patchEventHandler.observe(
-        EVENT_TARGET,
-        (event, task) => {
-          etsub(event, task)
-        }
-      )
-
-      const listener = e => {
-        expect(e.type).toBe('click')
-      }
-      window.addEventListener('click', listener)
-
-      let element = document.createElement('button')
-      element.setAttribute('name', 'window-listener-will-handle-me')
-      document.body.appendChild(element)
-
-      element.click()
-
-      let tr = transactionService.getCurrentTransaction()
-      expect(tr).toBeDefined()
-      expect(tr.name).toBe('Click - button["window-listener-will-handle-me"]')
-      expect(tr.type).toBe('user-interaction')
-      cancelEventTargetSub()
-      document.body.removeChild(element)
-    })
-
-    it('should create click transactions on document', () => {
-      const transactionService = performanceMonitoring._transactionService
-      let etsub = performanceMonitoring.getEventTargetSub()
-      const cancelEventTargetSub = patchEventHandler.observe(
-        EVENT_TARGET,
-        (event, task) => {
-          etsub(event, task)
-        }
-      )
-
-      const listener = e => {
-        expect(e.type).toBe('click')
-      }
-      document.addEventListener('click', listener)
-
-      let element = document.createElement('button')
-      element.setAttribute('name', 'document-listener-will-handle-me')
-      document.body.appendChild(element)
-
-      element.click()
-
-      let tr = transactionService.getCurrentTransaction()
-      expect(tr).toBeDefined()
-      expect(tr.name).toBe('Click - button["document-listener-will-handle-me"]')
-      expect(tr.type).toBe('user-interaction')
-      cancelEventTargetSub()
-      document.body.removeChild(element)
-    })
-
-    it('should respect the transaction type priority order', function () {
-      const historySubFn = performanceMonitoring.getHistorySub()
-      const cancelHistorySub = patchEventHandler.observe(HISTORY, historySubFn)
-      let etsub = performanceMonitoring.getEventTargetSub()
-      const cancelEventTargetSub = patchEventHandler.observe(
-        EVENT_TARGET,
-        (event, task) => {
-          etsub(event, task)
-        }
-      )
-      const transactionService = performanceMonitoring._transactionService
-
-      let element = document.createElement('button')
-      element.setAttribute('name', 'purchase')
-
-      const listener = () => {
-        let tr = transactionService.getCurrentTransaction()
-        expect(tr.type).toBe('user-interaction')
-        history.pushState(undefined, undefined, 'test')
-      }
-
-      element.addEventListener('click', listener)
-      element.click()
-
-      let tr = transactionService.getCurrentTransaction()
-      expect(tr.name).toBe('Click - button["purchase"]')
-      expect(tr.type).toBe('route-change')
-
-      cancelHistorySub()
-      cancelEventTargetSub()
-    })
-
-    it('should respect the custom transaction name', function () {
-      const historySubFn = performanceMonitoring.getHistorySub()
-      const cancelHistorySub = patchEventHandler.observe(HISTORY, historySubFn)
-      let etsub = performanceMonitoring.getEventTargetSub()
-      const cancelEventTargetSub = patchEventHandler.observe(
-        EVENT_TARGET,
-        (event, task) => {
-          etsub(event, task)
-        }
-      )
-      const transactionService = performanceMonitoring._transactionService
-
-      let element = document.createElement('button')
-      element.setAttribute('data-transaction-name', 'purchase-transaction')
-
-      const listener = () => {
-        let tr = transactionService.getCurrentTransaction()
-        expect(tr.type).toBe('user-interaction')
-        history.pushState(undefined, undefined, 'test')
-      }
-
-      element.addEventListener('click', listener)
-      element.click()
-
-      let tr = transactionService.getCurrentTransaction()
-      expect(tr.name).toBe('Click - purchase-transaction')
-      expect(tr.type).toBe('route-change')
-
-      cancelHistorySub()
-      cancelEventTargetSub()
-    })
-  }
-
   it('should set outcome on transaction and spans', done => {
     let transactionService = performanceMonitoring._transactionService
 
@@ -968,6 +833,42 @@ describe('PerformanceMonitoring', function () {
       })
       .then(() => done())
   })
+
+  it('should set unknown outcome if xhr request is aborted', () => {
+    let transactionService = performanceMonitoring._transactionService
+    let task = createXHRTask('GET', '/')
+
+    performanceMonitoring.processAPICalls('schedule', task)
+    let tr = transactionService.getCurrentTransaction()
+
+    let spanTask = createXHRTask('GET', '/span')
+    performanceMonitoring.processAPICalls('schedule', spanTask)
+
+    spanTask.data.status = 'abort'
+    performanceMonitoring.processAPICalls('invoke', spanTask)
+
+    expect(tr.outcome).toBe('unknown')
+    expect(tr.spans[0].outcome).toBe('unknown')
+  })
+
+  if (window.Request) {
+    it('should set unknown outcome if fetch request is aborted', () => {
+      let transactionService = performanceMonitoring._transactionService
+      let task = createFetchTask('GET', '/')
+
+      performanceMonitoring.processAPICalls('schedule', task)
+      let tr = transactionService.getCurrentTransaction()
+
+      let spanTask = createFetchTask('GET', '/span')
+      performanceMonitoring.processAPICalls('schedule', spanTask)
+
+      spanTask.data.aborted = true
+      performanceMonitoring.processAPICalls('invoke', spanTask)
+
+      expect(tr.outcome).toBe('unknown')
+      expect(tr.spans[0].outcome).toBe('unknown')
+    })
+  }
 
   describe('PerformanceMonitoring Utils', () => {
     it('should group small continuously similar spans up until the last one', function () {

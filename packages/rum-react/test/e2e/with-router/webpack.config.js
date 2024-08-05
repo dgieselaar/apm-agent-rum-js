@@ -27,18 +27,20 @@ const path = require('path')
 const {
   getWebpackConfig,
   PACKAGE_TYPES,
-  BUNDLE_TYPES
+  BUNDLE_TYPES,
+  WEBPACK_HASH_FN
 } = require('../../../../../dev-utils/build')
 
 module.exports = {
   entry: {
     general: path.join(__dirname, 'general.js'),
-    switch: path.join(__dirname, 'switch.js')
+    routes: path.join(__dirname, 'routes.js')
   },
   output: {
     path: path.resolve(__dirname),
     filename: '[name].e2e-bundle.js',
-    libraryTarget: 'umd'
+    libraryTarget: 'umd',
+    hashFunction: WEBPACK_HASH_FN
   },
   ...getWebpackConfig(BUNDLE_TYPES.BROWSER_DEV, PACKAGE_TYPES.REACT)
 }

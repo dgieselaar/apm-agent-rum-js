@@ -31,11 +31,18 @@ import {
   TRANSACTION_SERVICE,
   LOGGING_SERVICE,
   CONFIG_SERVICE,
-  APM_SERVER
+  APM_SERVER,
+  ERROR_LOGGING,
+  EVENT_TARGET,
+  CLICK
 } from '@elastic/apm-rum-core'
 import { TRANSACTION_END } from '@elastic/apm-rum-core/src/common/constants'
 import { getGlobalConfig } from '../../../../dev-utils/test-config'
 import Promise from 'promise-polyfill'
+import {
+  hidePageSynthetically,
+  setDocumentVisibilityState
+} from '@elastic/apm-rum-core/test'
 
 var enabled = bootstrap()
 const { serviceName, serverUrl } = getGlobalConfig('rum').agentConfig
@@ -43,10 +50,30 @@ const { serviceName, serverUrl } = getGlobalConfig('rum').agentConfig
 describe('ApmBase', function () {
   let serviceFactory
   let apmBase
+  let originalAddEventListener
+  let unobserveVisibilitychange = function noop() {}
 
   beforeEach(function () {
     serviceFactory = createServiceFactory()
     apmBase = new ApmBase(serviceFactory, !enabled)
+
+    // Each time apmBase is initialized the visibilitychange event is attached to window
+    // To avoid side effects when testing we should detach it after each execution
+    originalAddEventListener = window.addEventListener
+    window.addEventListener = (type, listener, options) => {
+      if (type === 'visibilitychange') {
+        unobserveVisibilitychange = () => {
+          window.removeEventListener(type, listener, options)
+        }
+      }
+
+      originalAddEventListener(type, listener, options)
+    }
+  })
+
+  afterEach(() => {
+    window.addEventListener = originalAddEventListener
+    unobserveVisibilitychange()
   })
 
   it('should report whether agent is active or inactive', () => {
@@ -65,6 +92,7 @@ describe('ApmBase', function () {
   })
 
   it('should send page load metrics after load event', done => {
+    spyOn(window, 'setTimeout').and.callThrough()
     apmBase.config({ serviceName, serverUrl })
     apmBase._sendPageLoadMetrics()
     var tr = apmBase.getCurrentTransaction()
@@ -77,15 +105,91 @@ describe('ApmBase', function () {
       expect(endedTr).toEqual(tr)
       expect(document.readyState).toBe('complete')
       expect(tr.detectFinish).toHaveBeenCalled()
+      expect(window.setTimeout).toHaveBeenCalledWith(
+        jasmine.any(Function),
+        1000
+      )
       expect(tr.name).toBe('new page load')
       expect(tr.type).toBe(PAGE_LOAD)
       done()
     })
   })
 
+  it('should send page load metrics if page is backgrounded before load event is triggered', done => {
+    // Make sure page load event logic is not executed when initializing the agent.
+    // It's important to realize that when this test is executed Karma setup is already loaded in the browser.
+    // Hence, the page load event would be already executed.
+    // Faking the document.readyState makes possible to test the expected scenario
+    function setDocumentReadyState(state) {
+      Object.defineProperty(document, 'readyState', {
+        get() {
+          return state
+        }
+      })
+    }
+    const originalState = document.readyState
+    setDocumentReadyState('loading')
+
+    apmBase.init({ serviceName, serverUrl })
+
+    var tr = apmBase.getCurrentTransaction()
+
+    expect(tr.name).toBe('Unknown')
+    expect(tr.type).toBe(PAGE_LOAD)
+
+    hidePageSynthetically('visibilitychange')
+
+    apmBase.setInitialPageLoadName('partial page load')
+    apmBase.observe(TRANSACTION_END, endedTr => {
+      expect(endedTr).toEqual(tr)
+      expect(document.readyState).toBe('loading')
+      expect(tr.name).toBe('partial page load')
+      expect(tr.type).toBe(PAGE_LOAD)
+
+      setDocumentReadyState(originalState)
+      setDocumentVisibilityState('visible')
+      done()
+    })
+  })
+
+  it('should observe click event if eventtarget instrumentation is not disabled', () => {
+    apmBase.init({ serviceName, serverUrl })
+
+    document.body.click()
+
+    const tr = apmBase.getCurrentTransaction()
+    expect(tr.name).toBe('Click - body')
+  })
+
+  it('should not observe click event if EVENT_TARGET instrumentation is disabled', () => {
+    apmBase.init({
+      serviceName,
+      serverUrl,
+      disableInstrumentations: [EVENT_TARGET]
+    })
+
+    document.body.click()
+
+    const tr = apmBase.getCurrentTransaction()
+    expect(tr.name).toBe('Unknown')
+  })
+
+  it('should not observe click event if CLICK instrumentation is disabled', () => {
+    apmBase.init({
+      serviceName,
+      serverUrl,
+      disableInstrumentations: [CLICK]
+    })
+
+    document.body.click()
+
+    const tr = apmBase.getCurrentTransaction()
+    expect(tr.name).toBe('Unknown')
+  })
+
   it('should disable all auto instrumentations when instrument is false', () => {
     const trService = serviceFactory.getService(TRANSACTION_SERVICE)
-    const ErrorLogging = serviceFactory.getService('ErrorLogging')
+    const ErrorLogging = serviceFactory.getService(ERROR_LOGGING)
     const loggingInstane = ErrorLogging['__proto__']
     spyOn(loggingInstane, 'registerListeners')
 
@@ -103,7 +207,7 @@ describe('ApmBase', function () {
 
   it('should selectively enable/disable instrumentations based on config', () => {
     const trService = serviceFactory.getService(TRANSACTION_SERVICE)
-    const ErrorLogging = serviceFactory.getService('ErrorLogging')
+    const ErrorLogging = serviceFactory.getService(ERROR_LOGGING)
     const loggingInstane = ErrorLogging['__proto__']
     spyOn(loggingInstane, 'registerListeners')
 
@@ -282,36 +386,56 @@ describe('ApmBase', function () {
     expect(loggingService.warn).toHaveBeenCalledWith('RUM agent is inactive')
   })
 
-  it('should log errors when config is invalid', () => {
-    const loggingService = serviceFactory.getService(LOGGING_SERVICE)
-    spyOn(loggingService, 'warn')
-    const logErrorSpy = spyOn(loggingService, 'error')
-    apmBase.init({
-      serverUrl: undefined,
-      serviceName: ''
-    })
-    expect(loggingService.error).toHaveBeenCalledWith(
-      `RUM agent isn't correctly configured. serverUrl, serviceName is missing`
-    )
-    const configService = serviceFactory.getService(CONFIG_SERVICE)
-    expect(configService.get('active')).toEqual(false)
+  describe('invalid config', () => {
+    let loggingService
 
-    logErrorSpy.calls.reset()
-    apmBase.config({
-      serverUrl: '',
-      serviceName: 'abc.def'
+    beforeEach(() => {
+      loggingService = serviceFactory.getService(LOGGING_SERVICE)
+      spyOn(loggingService, 'warn')
+      spyOn(loggingService, 'error')
     })
-    expect(loggingService.error).toHaveBeenCalledWith(
-      `RUM agent isn't correctly configured. serverUrl is missing, serviceName "abc.def" contains invalid characters! (allowed: a-z, A-Z, 0-9, _, -, <space>)`
-    )
 
-    logErrorSpy.calls.reset()
-    apmBase.config({
-      serviceName: 'abc.def'
+    it('should log errors when config is invalid', () => {
+      apmBase.init({
+        serverUrl: undefined,
+        serviceName: ''
+      })
+      expect(loggingService.error).toHaveBeenCalledWith(
+        `RUM agent isn't correctly configured. serverUrl, serviceName is missing`
+      )
+      const configService = serviceFactory.getService(CONFIG_SERVICE)
+      expect(configService.get('active')).toEqual(false)
     })
-    expect(loggingService.error).toHaveBeenCalledWith(
-      `RUM agent isn't correctly configured. serviceName "abc.def" contains invalid characters! (allowed: a-z, A-Z, 0-9, _, -, <space>)`
-    )
+
+    it('should log missing required key and invalid config', () => {
+      apmBase.config({
+        serverUrl: '',
+        serviceName: 'abc.def'
+      })
+      expect(loggingService.error).toHaveBeenCalledWith(
+        `RUM agent isn't correctly configured. serverUrl is missing, serviceName "abc.def" contains invalid characters! (allowed: a-z, A-Z, 0-9, _, -, <space>)`
+      )
+    })
+
+    it('should log errors when invalid chars in serviceName', () => {
+      apmBase.config({
+        serviceName: 'abc.def'
+      })
+      expect(loggingService.error).toHaveBeenCalledWith(
+        `RUM agent isn't correctly configured. serviceName "abc.def" contains invalid characters! (allowed: a-z, A-Z, 0-9, _, -, <space>)`
+      )
+    })
+
+    it('should warn users unknown config keys', () => {
+      apmBase.config({
+        serviceName: 'abc',
+        serverUrl: 'http://localhost:8000',
+        randomKey: 'boo'
+      })
+      expect(loggingService.warn).toHaveBeenCalledWith(
+        `Unknown config options are specified for RUM agent: randomKey`
+      )
+    })
   })
 
   it('should instrument sync xhr', function (done) {

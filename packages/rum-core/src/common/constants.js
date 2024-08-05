@@ -60,6 +60,11 @@ const REUSABILITY_THRESHOLD = 5000
 const MAX_SPAN_DURATION = 5 * 60 * 1000
 
 /**
+ * The amount of time that should pass by before sending page load metrics
+ */
+const PAGE_LOAD_DELAY = 1000
+
+/**
  * Transaction & Span - Name & Types
  */
 const PAGE_LOAD = 'page-load'
@@ -69,6 +74,7 @@ const USER_INTERACTION = 'user-interaction'
 const HTTP_REQUEST_TYPE = 'http-request'
 const TEMPORARY_TYPE = 'temporary'
 const NAME_UNKNOWN = 'Unknown'
+const PAGE_EXIT = 'page-exit'
 
 const TRANSACTION_TYPE_ORDER = [
   PAGE_LOAD,
@@ -85,6 +91,7 @@ const TRANSACTION_TYPE_ORDER = [
 
 const OUTCOME_SUCCESS = 'success'
 const OUTCOME_FAILURE = 'failure'
+const OUTCOME_UNKNOWN = 'unknown'
 
 /**
  * Check only for long tasks that are more than 60ms
@@ -103,6 +110,7 @@ const TRANSACTION_END = 'transaction:end'
 const CONFIG_CHANGE = 'config:change'
 const QUEUE_FLUSH = 'queue:flush'
 const QUEUE_ADD_TRANSACTION = 'queue:add_transaction'
+const TRANSACTION_IGNORE = 'transaction:ignore'
 
 /**
  * Events types that are used to toggle auto instrumentations
@@ -110,7 +118,8 @@ const QUEUE_ADD_TRANSACTION = 'queue:add_transaction'
 const XMLHTTPREQUEST = 'xmlhttprequest'
 const FETCH = 'fetch'
 const HISTORY = 'history'
-const EVENT_TARGET = 'eventtarget'
+const EVENT_TARGET = 'eventtarget' //@deprecated, it will be removed in the first 6.x release
+const CLICK = 'click'
 const ERROR = 'error'
 
 /**
@@ -137,6 +146,7 @@ const FIRST_CONTENTFUL_PAINT = 'first-contentful-paint'
 const LARGEST_CONTENTFUL_PAINT = 'largest-contentful-paint'
 const FIRST_INPUT = 'first-input'
 const LAYOUT_SHIFT = 'layout-shift'
+const EVENT = 'event'
 
 /**
  * Event types sent to APM Server on the queue
@@ -151,6 +161,8 @@ const CONFIG_SERVICE = 'ConfigService'
 const LOGGING_SERVICE = 'LoggingService'
 const TRANSACTION_SERVICE = 'TransactionService'
 const APM_SERVER = 'ApmServer'
+const PERFORMANCE_MONITORING = 'PerformanceMonitoring'
+const ERROR_LOGGING = 'ErrorLogging'
 
 /**
  * Truncated spans are associated with this type information
@@ -180,9 +192,11 @@ export {
   RESOURCE_INITIATOR_TYPES,
   REUSABILITY_THRESHOLD,
   MAX_SPAN_DURATION,
+  PAGE_LOAD_DELAY,
   PAGE_LOAD,
   ROUTE_CHANGE,
   NAME_UNKNOWN,
+  PAGE_EXIT,
   TYPE_CUSTOM,
   USER_TIMING_THRESHOLD,
   TRANSACTION_START,
@@ -190,10 +204,12 @@ export {
   CONFIG_CHANGE,
   QUEUE_FLUSH,
   QUEUE_ADD_TRANSACTION,
+  TRANSACTION_IGNORE,
   XMLHTTPREQUEST,
   FETCH,
   HISTORY,
   EVENT_TARGET,
+  CLICK,
   ERROR,
   BEFORE_EVENT,
   AFTER_EVENT,
@@ -216,11 +232,15 @@ export {
   LOGGING_SERVICE,
   TRANSACTION_SERVICE,
   APM_SERVER,
+  PERFORMANCE_MONITORING,
+  ERROR_LOGGING,
   TRUNCATED_TYPE,
   FIRST_INPUT,
   LAYOUT_SHIFT,
+  EVENT,
   OUTCOME_SUCCESS,
   OUTCOME_FAILURE,
+  OUTCOME_UNKNOWN,
   SESSION_TIMEOUT,
   HTTP_REQUEST_TIMEOUT
 }

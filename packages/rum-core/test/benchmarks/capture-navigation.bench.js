@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  *
  */
-import { captureNavigation } from '../../src/performance-monitoring/capture-navigation'
+import { captureNavigation } from '../../src/performance-monitoring/navigation/capture-navigation'
 import Transaction from '../../src/performance-monitoring/transaction'
 import { PAGE_LOAD, ROUTE_CHANGE } from '../../src/common/constants'
 

@@ -28,7 +28,8 @@ import {
   ERRORS,
   TRANSACTION_SERVICE,
   CONFIG_SERVICE,
-  APM_SERVER
+  APM_SERVER,
+  ERROR_LOGGING
 } from '../../src/common/constants'
 import { getGlobalConfig } from '../../../../dev-utils/test-config'
 
@@ -46,7 +47,7 @@ describe('ErrorLogging', function () {
     configService = serviceFactory.getService(CONFIG_SERVICE)
     configService.setConfig(agentConfig)
     apmServer = serviceFactory.getService(APM_SERVER)
-    errorLogging = serviceFactory.getService('ErrorLogging')
+    errorLogging = serviceFactory.getService(ERROR_LOGGING)
     transactionService = serviceFactory.getService(TRANSACTION_SERVICE)
   })
 
@@ -392,9 +393,29 @@ describe('ErrorLogging', function () {
     )
 
     errorLogging.logPromiseEvent({
-      reason: [{ a: '1' }]
+      reason: ['array-value']
     })
     expect(getEvents()[7][ERRORS].exception.message).toBe(
+      'Unhandled promise rejection: <object>'
+    )
+
+    errorLogging.logPromiseEvent({
+      reason: { a: '1' }
+    })
+    expect(getEvents()[8][ERRORS].exception.message).toBe(
+      'Unhandled promise rejection: {"a":"1"}'
+    )
+
+    // Make sure that the object fallback case works
+    // Circular objects causes JSON.stringify to fail
+    const circularObj = {
+      foo: 'bar'
+    }
+    circularObj.self = circularObj
+    errorLogging.logPromiseEvent({
+      reason: circularObj
+    })
+    expect(getEvents()[9][ERRORS].exception.message).toBe(
       'Unhandled promise rejection: <object>'
     )
 
@@ -402,14 +423,14 @@ describe('ErrorLogging', function () {
     errorLogging.logPromiseEvent({
       reason: noop
     })
-    expect(getEvents()[8][ERRORS].exception.message).toBe(
+    expect(getEvents()[10][ERRORS].exception.message).toBe(
       'Unhandled promise rejection: <function>'
     )
 
     errorLogging.logPromiseEvent({
       reason: null
     })
-    expect(getEvents()[9][ERRORS].exception.message).toBe(
+    expect(getEvents()[11][ERRORS].exception.message).toBe(
       'Unhandled promise rejection: <no reason specified>'
     )
 

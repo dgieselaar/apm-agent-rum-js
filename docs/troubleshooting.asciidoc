@@ -14,6 +14,35 @@ further to identify the offending code.
 Of course, there are errors that might have been caused by the agent itself and we appreciate it if
 you <<get-in-touch, report them back to us>>.
 
+[float]
+[[cross-origin-script-error]]
+=== Some errors in the application only show `script error`
+In some cases when you look at the details of an error, the only information you can see is the message `Script error`.
+This happens when an error originates from a JavaScript file served from a different origin than the page's origin.
+
+In order to get visibility of the error's detail, you must do two things.
+
+1. Add the attribute `crossorigin` to the `<script>` element:
++
+[source,js]
+----
+<script src="https://example.com/example.js" crossorigin>
+----
+
+2. Make sure that the server response includes the `Access-Control-Allow-Origin` header when serving the JavaScript file.
++
+[source,js]
+----
+// Either of the two values is valid:
+
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Origin: your page's origin
+----
+
+NOTE: `Access-Control-Allow-Origin: *` will not match `localhost` in some browsers (e.g. https://bugs.chromium.org/p/chromium/issues/detail?id=67743[in Chrome]), causing `Script error` messages in local development environments when the configuration is otherwise correct.
+
+TIP: To learn more about how browsers handle script errors, see the MDN page on the https://developer.mozilla.org/en-US/docs/Web/API/GlobalEventHandlers/onerror#notes[onerror] event.
+
 
 [float]
 [[no-stack-trace-available]]
@@ -30,6 +59,23 @@ In order to debug the agent consider performing the following steps:
 2. Reload the application
 3. Wait at least 5 seconds after the page has loaded
 4. Monitor the Console and Network panel in your browsers developer tools
+
+[float]
+[[disable-events-payload-compression]]
+=== Disable events payload compression
+
+In browsers such as Chrome, the RUM agent event payload is compressed with gzip.
+Because of this compression, you will not see readable content when inspecting the event with the Network panel of your browser developer tools.
+
+There are situations where that can be an issue. For instance, HAR files will not show readable information. Therefore, inspecting events
+for debugging purposes will not be possible.
+
+There are two ways to disable the payload compression:
+
+1. Create an item named `_elastic_inspect_beacon_` using the sessionStorage browser API.
+2. Load the webpage with the query param `_elastic_inspect_beacon_` in the URL. For example, `https://elastic.co?_elastic_inspect_beacon_=true`
+
+The effect of this will remain until the tab or browser is closed.
 
 [float]
 [[disable-agent]]

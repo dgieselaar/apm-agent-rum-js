@@ -27,7 +27,8 @@ import { Promise } from './polyfills'
 import {
   NAVIGATION_TIMING_MARKS,
   COMPRESSED_NAV_TIMING_MARKS
-} from '../performance-monitoring/capture-navigation'
+} from '../performance-monitoring/navigation/marks'
+import { isBeaconInspectionEnabled } from './utils'
 
 /**
  * Compression of all the below schema is based on the v3 RUM Specification
@@ -290,30 +291,14 @@ export function compressError(error) {
 
 export function compressMetricsets(breakdowns) {
   return breakdowns.map(({ span, samples }) => {
-    const isSpan = span != null
-    if (isSpan) {
-      return {
-        y: { t: span.type },
-        sa: {
-          ysc: {
-            v: samples['span.self_time.count'].value
-          },
-          yss: {
-            v: samples['span.self_time.sum.us'].value
-          }
-        }
-      }
-    }
     return {
+      y: { t: span.type },
       sa: {
-        xdc: {
-          v: samples['transaction.duration.count'].value
+        ysc: {
+          v: samples['span.self_time.count'].value
         },
-        xds: {
-          v: samples['transaction.duration.sum.us'].value
-        },
-        xbc: {
-          v: samples['transaction.breakdown.count'].value
+        yss: {
+          v: samples['span.self_time.sum.us'].value
         }
       }
     }
@@ -335,6 +320,15 @@ export function compressPayload(params, type = 'gzip') {
     if (!isCompressionStreamSupported) {
       return resolve(params)
     }
+
+    /**
+     * Resolve with unmodified payload if the flag
+     * for inspecting beacons is enabled
+     */
+    if (isBeaconInspectionEnabled()) {
+      return resolve(params)
+    }
+
     const { payload, headers, beforeSend } = params
     /**
      * create a blob with the original payload data and convert it

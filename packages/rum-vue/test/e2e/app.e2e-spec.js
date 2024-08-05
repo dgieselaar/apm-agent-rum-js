@@ -23,35 +23,37 @@
  *
  */
 
-const { waitForApmServerCalls } = require('../../../../dev-utils/webdriver')
+const { getLastServerCall } = require('../../../../dev-utils/webdriver')
 
 describe('Vue router integration', function () {
-  beforeAll(() => browser.url('/test/e2e/'))
+  beforeAll(async () => {
+    await browser.url('/test/e2e/')
+  })
 
-  it('should run vue app and capture route-change events', function () {
-    browser.waitUntil(
-      () => {
+  it('should run vue app and capture route-change events', async () => {
+    let result = await getLastServerCall(0, 1)
+    const [pageLoadTransaction] = result.sendEvents.transactions
+
+    expect(pageLoadTransaction.type).toBe('page-load')
+    expect(pageLoadTransaction.name).toBe('/')
+    expect(pageLoadTransaction.spans.length).toBeGreaterThan(1)
+
+    await browser.waitUntil(
+      async () => {
         /**
          * route to /fetch
          */
-        $('#fetch').click()
-        const fetchResult = $('#content')
-        return fetchResult.getText().indexOf('loaded data.json') !== -1
+        await $('#fetch').click()
+        const fetchResult = await $('#content')
+        return (await fetchResult.getText()).indexOf('loaded data.json') !== -1
       },
       5000,
       'expected data.json to be loaded'
     )
 
-    const { sendEvents } = waitForApmServerCalls(0, 2)
-    const { transactions } = sendEvents
-    expect(transactions.length).toBe(2)
+    result = await getLastServerCall(0, 1)
+    const [routeTransaction] = result.sendEvents.transactions
 
-    const pageLoadTransaction = transactions[0]
-    expect(pageLoadTransaction.type).toBe('page-load')
-    expect(pageLoadTransaction.name).toBe('/')
-    expect(pageLoadTransaction.spans.length).toBeGreaterThan(1)
-
-    const routeTransaction = transactions[1]
     expect(routeTransaction.name).toBe('/fetch')
     expect(routeTransaction.type).toBe('route-change')
     expect(routeTransaction.spans.length).toBeGreaterThan(0)
@@ -59,5 +61,26 @@ describe('Vue router integration', function () {
       span => span.type === 'external'
     )
     expect(extSpans[0].name).toBe('GET /test/e2e/data.json')
+  })
+})
+
+describe('Script setup syntax', function () {
+  beforeAll(async () => {
+    await browser.url('/test/e2e/')
+  })
+
+  it('should be supported', async () => {
+    await browser.waitUntil(
+      async () => {
+        /**
+         * route to /syntax
+         */
+        await $('#syntax').click()
+        const supportResult = await $('#script-setup-syntax-support')
+        return (await supportResult.getText()) === 'true'
+      },
+      5000,
+      'expected script setup syntax to be supported'
+    )
   })
 })

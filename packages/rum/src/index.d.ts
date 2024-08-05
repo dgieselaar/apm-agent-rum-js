@@ -100,6 +100,14 @@ declare module '@elastic/apm-rum' {
     propagateTracestate?: boolean
     eventsLimit?: number
     queueLimit?: number
+    sendCredentials?: boolean
+    apmRequest?: (requestParams: {
+      xhr: XMLHttpRequest
+      url: string
+      method: string
+      payload?: string
+      headers?: Record<string, string>
+    }) => boolean
   }
 
   type Init = (options?: AgentConfigOptions) => ApmBase
@@ -184,6 +192,7 @@ type TransactionEvents = 'transaction:start' | 'transaction:end'
 type InstrumentationTypes =
   | 'page-load'
   | 'eventtarget'
+  | 'click'
   | 'error'
   | 'history'
   | 'fetch'

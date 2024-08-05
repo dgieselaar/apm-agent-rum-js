@@ -33,7 +33,9 @@ import {
   HTTP_REQUEST_TIMEOUT,
   LOGGING_SERVICE,
   CONFIG_SERVICE,
-  APM_SERVER
+  APM_SERVER,
+  PERFORMANCE_MONITORING,
+  ERROR_LOGGING
 } from '../../src/common/constants'
 import { getGlobalConfig } from '../../../../dev-utils/test-config'
 import { describeIf, spyOnFunction } from '../../../../dev-utils/jasmine'
@@ -64,8 +66,8 @@ describe('ApmServer', function () {
     configService.setConfig(agentConfig)
     loggingService = serviceFactory.getService(LOGGING_SERVICE)
     apmServer = serviceFactory.getService(APM_SERVER)
-    performanceMonitoring = serviceFactory.getService('PerformanceMonitoring')
-    errorLogging = serviceFactory.getService('ErrorLogging')
+    performanceMonitoring = serviceFactory.getService(PERFORMANCE_MONITORING)
+    errorLogging = serviceFactory.getService(ERROR_LOGGING)
   })
 
   afterEach(function () {
@@ -286,6 +288,7 @@ describe('ApmServer', function () {
     sp.end(50)
     tr.end(100)
     const payload = performanceMonitoring.createTransactionDataModel(tr)
+
     await apmServer.sendEvents([
       {
         [TRANSACTIONS]: payload
@@ -387,9 +390,8 @@ describe('ApmServer', function () {
     const expected = [
       '{"transaction":{"id":"transaction-id-0","trace_id":"trace-id-0","name":"transaction #0","type":"transaction","duration":990,"span_count":{"started":1},"sampled":true,"sample_rate":0.1}}\n',
       '{"span":{"id":"span-id-0-1","transaction_id":"transaction-id-0","parent_id":"transaction-id-0","trace_id":"trace-id-0","name":"name","type":"type","subtype":"subtype","sync":false,"start":10,"duration":10,"sample_rate":0.1}}\n',
-      '{"metricset":{"transaction":{"name":"transaction #0","type":"transaction"},"samples":{"transaction.duration.count":{"value":1},"transaction.duration.sum.us":{"value":990},"transaction.breakdown.count":{"value":1}}}}\n',
-      '{"metricset":{"transaction":{"name":"transaction #0","type":"transaction"},"span":{"type":"app"},"samples":{"span.self_time.count":{"value":1},"span.self_time.sum.us":{"value":980}}}}\n',
-      '{"metricset":{"transaction":{"name":"transaction #0","type":"transaction"},"span":{"type":"type","subtype":"subtype"},"samples":{"span.self_time.count":{"value":1},"span.self_time.sum.us":{"value":10}}}}\n'
+      '{"metricset":{"transaction":{"name":"transaction #0","type":"transaction"},"span":{"type":"app"},"samples":{"span.self_time.count":{"value":1},"span.self_time.sum.us":{"value":980000}}}}\n',
+      '{"metricset":{"transaction":{"name":"transaction #0","type":"transaction"},"span":{"type":"type","subtype":"subtype"},"samples":{"span.self_time.count":{"value":1},"span.self_time.sum.us":{"value":10000}}}}\n'
     ].join('')
     expect(result).toEqual([expected])
   })
@@ -477,9 +479,11 @@ describe('ApmServer', function () {
       spyOnFunction(xhrSender, 'sendXHR')
       const serverUrl = 'http://localhost'
       const serverUrlPrefix = '/prefix'
+      const sendCredentials = true
       configService.setConfig({
         serverUrl,
-        serverUrlPrefix
+        serverUrlPrefix,
+        sendCredentials
       })
 
       await apmServer.sendEvents([{ [TRANSACTIONS]: { test: 'test' } }])
@@ -495,7 +499,8 @@ describe('ApmServer', function () {
             '{"metadata":{"service":{"name":"test","agent":{"name":"rum-js","version":"N/A"},"language":{"name":"javascript"}}}}\n{"transaction":{"test":"test"}}\n',
           headers: {
             'Content-Type': 'application/x-ndjson'
-          }
+          },
+          sendCredentials: true
         }
       )
       expect(xhrSender.sendXHR).toHaveBeenCalledTimes(0)
@@ -511,10 +516,12 @@ describe('ApmServer', function () {
 
       const serverUrl = 'http://localhost'
       const serverUrlPrefix = '/prefix'
+      const sendCredentials = true
       configService.setConfig({
         serverUrl,
         serverUrlPrefix,
-        apmRequest: beforeSend
+        apmRequest: beforeSend,
+        sendCredentials
       })
 
       await apmServer.sendEvents([{ [TRANSACTIONS]: { test: 'test' } }])
@@ -533,7 +540,8 @@ describe('ApmServer', function () {
           headers: {
             'Content-Type': 'application/x-ndjson'
           },
-          beforeSend
+          beforeSend,
+          sendCredentials
         }
       )
     })
@@ -548,9 +556,11 @@ describe('ApmServer', function () {
       spyOnFunction(xhrSender, 'sendXHR').and.resolveTo({})
       const serverUrl = 'http://localhost'
       const serverUrlPrefix = '/prefix'
+      const sendCredentials = true
       configService.setConfig({
         serverUrl,
-        serverUrlPrefix
+        serverUrlPrefix,
+        sendCredentials
       })
 
       await apmServer.sendEvents([{ [TRANSACTIONS]: { test: 'test' } }])
@@ -569,7 +579,8 @@ describe('ApmServer', function () {
           headers: {
             'Content-Type': 'application/x-ndjson'
           },
-          beforeSend: null
+          beforeSend: null,
+          sendCredentials: true
         }
       )
     })

@@ -29,10 +29,13 @@ import {
   APM_SERVER,
   CONFIG_SERVICE,
   LOGGING_SERVICE,
-  TRANSACTION_SERVICE
+  TRANSACTION_SERVICE,
+  PERFORMANCE_MONITORING
 } from '../common/constants'
 
 import { serviceCreators } from '../common/service-factory'
+import { observeUserInteractions } from './metrics/inp/process'
+import { reportInp } from './metrics/inp/report'
 
 function registerServices() {
   serviceCreators[TRANSACTION_SERVICE] = serviceFactory => {
@@ -43,7 +46,7 @@ function registerServices() {
     return new TransactionService(loggingService, configService)
   }
 
-  serviceCreators['PerformanceMonitoring'] = serviceFactory => {
+  serviceCreators[PERFORMANCE_MONITORING] = serviceFactory => {
     const [
       apmServer,
       configService,
@@ -64,4 +67,4 @@ function registerServices() {
   }
 }
 
-export { registerServices }
+export { registerServices, observeUserInteractions, reportInp }

@@ -3,6 +3,90 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+### [5.16.1](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.16.0...@elastic/apm-rum@5.16.1) (2024-06-27)
+
+**Note:** Version bump only for package @elastic/apm-rum
+
+
+
+
+
+## [5.16.0](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.15.0...@elastic/apm-rum@5.16.0) (2023-12-27)
+
+
+### Features
+
+* **rum:** report INP metric ([#1462](https://github.com/elastic/apm-agent-rum-js/issues/1462)) ([866f066](https://github.com/elastic/apm-agent-rum-js/commit/866f066687a789252712c69301384d5473e22228))
+
+
+
+## [5.15.0](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.14.0...@elastic/apm-rum@5.15.0) (2023-09-27)
+
+
+### Features
+
+* **rum-core:** stringify rejected obj ([#1428](https://github.com/elastic/apm-agent-rum-js/issues/1428)) ([9785834](https://github.com/elastic/apm-agent-rum-js/commit/9785834cb1f48b5a461ff4f8b21f4a914f4f6c3f))
+
+
+
+## [5.14.0](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.13.0...@elastic/apm-rum@5.14.0) (2023-08-03)
+
+
+### Features
+
+* **rum:** force minor version bump rum package ([#1402](https://github.com/elastic/apm-agent-rum-js/issues/1402)) ([8a656b7](https://github.com/elastic/apm-agent-rum-js/commit/8a656b7ab38897a0dc5f44f156cfd84c6c7140f8))
+
+
+
+## [5.13.0](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.12.0...@elastic/apm-rum@5.13.0) (2023-07-18)
+
+
+### Features
+
+* **rum-core:** add apmRequest config typescript type ([#1254](https://github.com/elastic/apm-agent-rum-js/issues/1254)) ([cfaa327](https://github.com/elastic/apm-agent-rum-js/commit/cfaa327ba3715c90750157eab66149be8437d2a8))
+* **rum-core:** enhance user transaction name obtaining ([#1390](https://github.com/elastic/apm-agent-rum-js/issues/1390)) ([1144b9f](https://github.com/elastic/apm-agent-rum-js/commit/1144b9fd3b84f49eca543a95e9bdf61a9aa37835))
+* **rum:** add sendCredentials config option to TypeScript typings ([#1243](https://github.com/elastic/apm-agent-rum-js/issues/1243)) ([369800e](https://github.com/elastic/apm-agent-rum-js/commit/369800e17db59e39dbbfc3c9ab0e1483b45b2c9e))
+
+
+
+# [5.12.0](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.11.1...@elastic/apm-rum@5.12.0) (2022-06-14)
+
+
+### Features
+
+* warn users when invalid config options provided when init ([#1230](https://github.com/elastic/apm-agent-rum-js/issues/1230)) ([9bb158c](https://github.com/elastic/apm-agent-rum-js/commit/9bb158c22d0ae1f6ef6ea1679930c79814b60dcf))
+
+
+
+
+
+## [5.11.1](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.11.0...@elastic/apm-rum@5.11.1) (2022-05-16)
+
+
+### Bug Fixes
+
+* **rum:** listen to all page clicks ([#1219](https://github.com/elastic/apm-agent-rum-js/issues/1219)) ([6746baf](https://github.com/elastic/apm-agent-rum-js/commit/6746baf5ddcc33a399156e615ea436dd4ceeff02))
+
+
+
+
+
+# [5.11.0](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.10.2...@elastic/apm-rum@5.11.0) (2022-04-20)
+
+
+### Bug Fixes
+
+* report LCP score properly ([#1190](https://github.com/elastic/apm-agent-rum-js/issues/1190)) ([9ff2dd0](https://github.com/elastic/apm-agent-rum-js/commit/9ff2dd0a74e7d1398491dc021d4b96b9ccbeebe8))
+
+
+### Features
+
+* send events when user leaves the page  ([#1146](https://github.com/elastic/apm-agent-rum-js/issues/1146)) ([2429814](https://github.com/elastic/apm-agent-rum-js/commit/242981446a6a03ffe3b9bb8c1de34a4b1f9195e9))
+
+
+
+
+
 ## [5.10.2](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum@5.10.1...@elastic/apm-rum@5.10.2) (2022-02-03)
 
 **Note:** Version bump only for package @elastic/apm-rum

@@ -44,14 +44,48 @@ export function patchFetch(callback) {
     callback(INVOKE, task)
   }
 
+  function handleResponseError(task, error) {
+    task.data.aborted = isAbortError(error)
+    task.data.error = error
+    invokeTask(task)
+  }
+
+  function readStream(stream, task) {
+    const reader = stream.getReader()
+    const read = () => {
+      reader.read().then(
+        ({ done }) => {
+          if (done) {
+            invokeTask(task)
+          } else {
+            read()
+          }
+        },
+        error => {
+          handleResponseError(task, error)
+        }
+      )
+    }
+    read()
+  }
+
   var nativeFetch = window.fetch
   window.fetch = function (input, init) {
     var fetchSelf = this
     var args = arguments
     var request, url
-    if (typeof input === 'string') {
+    var isURL = input instanceof URL
+    if (typeof input === 'string' || isURL) {
       request = new Request(input, init)
-      url = input
+      if (isURL) {
+        url = request.url
+      } else {
+        // when the input is a string, the url value should be copied from it, rather than from request.url
+        // this is important, there are existing users using relative urls when using fetch, which generates a span.name like 'GET /path-example'
+        // switching to request.url like we do now with the introduction of URL objects support would start changing existing spans
+        // the name would start being something like 'GET http://the-url-of-the-web-page.tld/path-example' which would cause unexpected results in the Kibana side
+        url = input
+      }
     } else if (input) {
       request = input
       url = request.url
@@ -87,22 +121,31 @@ export function patchFetch(callback) {
 
       promise.then(
         response => {
+          let clonedResponse = response.clone ? response.clone() : {}
           resolve(response)
           // invokeTask in the next execution cycle to let the promise resolution complete
           scheduleMicroTask(() => {
             task.data.response = response
-            invokeTask(task)
+            const { body } = clonedResponse
+            if (body) {
+              readStream(body, task)
+            } else {
+              invokeTask(task)
+            }
           })
         },
         error => {
           reject(error)
           scheduleMicroTask(() => {
-            task.data.error = error
-            invokeTask(task)
+            handleResponseError(task, error)
           })
         }
       )
       globalState.fetchInProgress = false
     })
   }
+}
+
+function isAbortError(error) {
+  return error && error.name === 'AbortError'
 }

@@ -1,0 +1,138 @@
+---
+# When triggered it will publish the release only if the changes are related to the
+# release
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        type: boolean
+        description: 'Run release process in dry-run mode'
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  ELASTIC_CDN_BUCKET_NAME: ${{ inputs.dry-run == false && 'apm-rum-357700bc' || 'oblt-apm-agent-rum-js-ci' }}
+  ELASTIC_CDN_CREDENTIALS: ${{ inputs.dry-run == false && 'secret/gce/elastic-cdn/service-account/apm-rum-admin' || 'secret/observability-team/ci/service-account/apm-agent-rum-js' }}
+  SLACK_BUILD_MESSAGE: "Build: (<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|here>)"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to write the release changelog
+      contents: write
+    services:
+      verdaccio:
+        image: verdaccio/verdaccio:5
+        ports:
+          - 4873:4873
+    env:
+      GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ env.GITHUB_TOKEN }}
+
+      - uses: elastic/oblt-actions/git/setup@v1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # This prevent lerna command from throwing this error:
+      # "Working tree has uncommitted changes, please commit or remove the following changes before continuing"
+      - name: Ignore git uncommitted changes
+        run: |
+          git update-index --skip-worktree .npmrc
+
+      - name: Publish the release
+        env:
+          DRY_RUN: "${{ inputs.dry-run }}"
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          npm run ci:release
+
+      - name: Read GCE vault secrets
+        uses: hashicorp/vault-action@v3.0.0
+        with:
+          method: approle
+          url: ${{ secrets.VAULT_ADDR }}
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          secrets: |
+            ${{ env.ELASTIC_CDN_CREDENTIALS }} value | GOOGLE_CREDENTIALS ;
+
+      - name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ env.GOOGLE_CREDENTIALS }}'
+          create_credentials_file: true
+
+      - id: prepare-release
+        name: 'Prepare CDN release'
+        run: echo "versions=$(npm run --silent ci:prepare-release)" >> ${GITHUB_OUTPUT}
+
+      - id: 'upload-files-version'
+        if: ${{ always() && hashFiles('packages/rum/dist/bundles/*.js') }}
+        uses: 'google-github-actions/upload-cloud-storage@v2'
+        with:
+          parent: false
+          path: 'packages/rum/dist/bundles/'
+          destination: '${{ env.ELASTIC_CDN_BUCKET_NAME }}/${{ fromJSON(steps.prepare-release.outputs.versions).version }}'
+          glob: '*.js'
+          process_gcloudignore: false
+          headers: |-
+            cache-control: public,max-age=31536000,immutable
+
+      - id: 'upload-files-major-version'
+        if: ${{ always() && hashFiles('packages/rum/dist/bundles/*.js') }}
+        uses: 'google-github-actions/upload-cloud-storage@v2'
+        with:
+          parent: false
+          path: 'packages/rum/dist/bundles/'
+          destination: '${{ env.ELASTIC_CDN_BUCKET_NAME }}/${{ fromJSON(steps.prepare-release.outputs.versions).major_version }}'
+          glob: '*.js'
+          process_gcloudignore: false
+          headers: |-
+            cache-control: public,max-age=604800,immutable
+
+      - id: 'upload-file-index'
+        if: ${{ always() && hashFiles('index.html') }}
+        uses: 'google-github-actions/upload-cloud-storage@v2'
+        with:
+          parent: false
+          path: 'index.html'
+          destination: '${{ env.ELASTIC_CDN_BUCKET_NAME }}'
+          process_gcloudignore: false
+          headers: |-
+            cache-control: public,max-age=604800,immutable
+
+      - name: Post-release
+        env:
+          DRY_RUN: "${{ inputs.dry-run }}"
+        run: npm run ci:post-release
+
+      - if: ${{ success() && inputs.dry-run == false }}
+        uses: elastic/oblt-actions/slack/send@v1
+        with:
+          bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel-id: "#apm-agent-js"
+          message: |
+            :runner: [${{ github.repository }}] Release has been published. ${{ env.SLACK_BUILD_MESSAGE }}
+
+      - if: ${{ failure() && inputs.dry-run == false }}
+        uses: elastic/oblt-actions/slack/send@v1
+        with:
+          bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel-id: "#apm-agent-js"
+          message: |
+            :ghost: [${{ github.repository }}] Release failed. ${{ env.SLACK_BUILD_MESSAGE }}

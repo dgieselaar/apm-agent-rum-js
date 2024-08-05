@@ -3,6 +3,78 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+### [3.0.4](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@3.0.3...@elastic/apm-rum-angular@3.0.4) (2024-06-27)
+
+**Note:** Version bump only for package @elastic/apm-rum-angular
+
+
+
+
+
+### [3.0.3](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@3.0.2...@elastic/apm-rum-angular@3.0.3) (2023-12-27)
+
+**Note:** Version bump only for package @elastic/apm-rum-angular
+
+
+
+
+
+### [3.0.2](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@3.0.1...@elastic/apm-rum-angular@3.0.2) (2023-09-27)
+
+**Note:** Version bump only for package @elastic/apm-rum-angular
+
+
+
+
+
+### [3.0.1](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@3.0.0...@elastic/apm-rum-angular@3.0.1) (2023-08-03)
+
+**Note:** Version bump only for package @elastic/apm-rum-angular
+
+
+
+
+
+## [3.0.0](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@2.1.7...@elastic/apm-rum-angular@3.0.0) (2023-07-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **rum-angular:** support angular ivy (#1380)
+
+### Features
+
+* **rum-angular:** support angular ivy ([#1380](https://github.com/elastic/apm-agent-rum-js/issues/1380)) ([50bf76d](https://github.com/elastic/apm-agent-rum-js/commit/50bf76d963d862c1667f2ecf03229f80f0d2c002))
+
+
+
+## [2.1.7](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@2.1.6...@elastic/apm-rum-angular@2.1.7) (2022-06-14)
+
+**Note:** Version bump only for package @elastic/apm-rum-angular
+
+
+
+
+
+## [2.1.6](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@2.1.5...@elastic/apm-rum-angular@2.1.6) (2022-05-16)
+
+**Note:** Version bump only for package @elastic/apm-rum-angular
+
+
+
+
+
+## [2.1.5](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@2.1.4...@elastic/apm-rum-angular@2.1.5) (2022-04-20)
+
+
+### Bug Fixes
+
+* report LCP score properly ([#1190](https://github.com/elastic/apm-agent-rum-js/issues/1190)) ([9ff2dd0](https://github.com/elastic/apm-agent-rum-js/commit/9ff2dd0a74e7d1398491dc021d4b96b9ccbeebe8))
+
+
+
+
+
 ## [2.1.4](https://github.com/elastic/apm-agent-rum-js/compare/@elastic/apm-rum-angular@2.1.3...@elastic/apm-rum-angular@2.1.4) (2022-02-03)
 
 **Note:** Version bump only for package @elastic/apm-rum-angular

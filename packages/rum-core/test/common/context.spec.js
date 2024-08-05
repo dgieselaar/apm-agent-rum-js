@@ -27,7 +27,7 @@ import { addSpanContext, addTransactionContext } from '../../src/common/context'
 import resourceEntries from '../fixtures/resource-entries'
 import Span from '../../src/performance-monitoring/span'
 import Transaction from '../../src/performance-monitoring/transaction'
-import { PAGE_LOAD } from '../../src/common/constants'
+import { PAGE_EXIT, PAGE_LOAD } from '../../src/common/constants'
 import { mockGetEntriesByType } from '../utils/globals-mock'
 
 describe('Context', () => {
@@ -211,7 +211,7 @@ describe('Context', () => {
       ...trContext
     })
 
-    const unmock = mockGetEntriesByType()
+    const unMock = mockGetEntriesByType()
     const pageloadTr = new Transaction('test', PAGE_LOAD)
     pageloadTr.end()
     addTransactionContext(pageloadTr, configContext)
@@ -231,6 +231,17 @@ describe('Context', () => {
       ...userContext
     })
 
-    unmock()
+    unMock()
+  })
+
+  it('should make sure that the page-exit transaction page context remains as it was defined', () => {
+    const tr = new Transaction(PAGE_EXIT, PAGE_EXIT)
+    tr.addContext({
+      page: {
+        url: 'the-url-to-reuse'
+      }
+    })
+    addTransactionContext(tr)
+    expect(tr.context.page.url).toBe('the-url-to-reuse')
   })
 })

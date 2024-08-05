@@ -1,0 +1,30 @@
+---
+name: bump-elastic-stack
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 15 * * 1-5'
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: elastic/oblt-actions/updatecli/run@v1
+        with:
+          command: "--experimental apply --config .ci/bump-elastic-stack.yml"
+        env:
+          GITHUB_TOKEN: ${{ secrets.UPDATECLI_GH_TOKEN }}
+
+      - if: failure()
+        uses: elastic/oblt-actions/slack/send@v1
+        with:
+          bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel-id: "#apm-agent-js"
+          message: ":traffic_cone: updatecli failed for `${{ github.repository }}@${{ github.ref_name }}`, @robots-ci please look what's going on <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|here>"

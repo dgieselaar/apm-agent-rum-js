@@ -247,14 +247,14 @@ function isPageLoaded() {
   })
 }
 
-function waitForApmServerCalls(errorCount = 0, transactionCount = 0) {
+async function getLastServerCall(errorCount = 0, transactionCount = 0) {
   const { name = '', version = '' } = getBrowserInfo()
   console.log(
     `Waiting for minimum ${errorCount} Errors and ${transactionCount} Transactions in`,
     name,
     version
   )
-  const serverCalls = browser.executeAsync(
+  const serverCalls = await browser.executeAsync(
     function (errorCount, transactionCount, done) {
       var apmServerMock = window.elasticApm.serviceFactory.getService(
         'ApmServer'
@@ -302,11 +302,13 @@ function waitForApmServerCalls(errorCount = 0, transactionCount = 0) {
                     errors: errors
                   }
                 }
+                apmServerMock.resetMock()
                 done(calls)
               }
             })
             .catch(function (reason) {
               console.log('reason', JSON.stringify(reason))
+              apmServerMock.resetMock()
               try {
                 done({ error: reason.message || JSON.stringify(reason) })
               } catch (e) {
@@ -348,8 +350,8 @@ function getBrowserInfo() {
   }
 }
 
-function getBrowserFeatures() {
-  return browser.executeAsync(function (done) {
+async function getBrowserFeatures() {
+  return await browser.executeAsync(function (done) {
     done({
       EventTarget: !!window.EventTarget
     })
@@ -371,7 +373,7 @@ module.exports = {
   isChromeLatest,
   getWebdriveBaseConfig,
   getBrowserInfo,
-  waitForApmServerCalls,
+  getLastServerCall,
   getBrowserFeatures,
   isPageLoaded
 }

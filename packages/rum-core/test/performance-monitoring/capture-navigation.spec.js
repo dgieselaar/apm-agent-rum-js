@@ -23,21 +23,27 @@
  *
  */
 
+import * as navTiming from '../../src/performance-monitoring/navigation/navigation-timing'
 import {
-  createNavigationTimingSpans,
-  createResourceTimingSpans,
-  createUserTimingSpans,
   captureNavigation,
+  createNavigationTimingSpans,
+  createUserTimingSpans,
+  createResourceTimingSpans,
   getPageLoadMarks
-} from '../../src/performance-monitoring/capture-navigation'
+} from '../../src/performance-monitoring/navigation/capture-navigation'
 import Transaction from '../../src/performance-monitoring/transaction'
 import { PAGE_LOAD, ROUTE_CHANGE } from '../../src/common/constants'
+import { spyOnFunction } from '../../../../dev-utils/jasmine'
 import { extend } from '../../src/common/utils'
 import resourceEntries from '../fixtures/resource-entries'
 import userTimingEntries from '../fixtures/user-timing-entries'
 import navTimingSpans from '../fixtures/navigation-timing-span-snapshot'
 import { TIMING_LEVEL1_ENTRY as timings } from '../fixtures/navigation-entries'
-import { mockGetEntriesByType } from '../utils/globals-mock'
+import { canMockPerfTimingApi } from '../'
+import {
+  mockGetEntriesByType,
+  mockPerformanceTimingEntries
+} from '../utils/globals-mock'
 
 const spanSnapshot = navTimingSpans.map(mapSpan)
 
@@ -47,7 +53,7 @@ function mapSpan(s) {
 
 describe('Capture hard navigation', function () {
   /**
-   * Arbitrary value considering the transcation end would be called
+   * Arbitrary value considering the transaction end would be called
    * after load event has finished
    */
   const transactionEnd = timings.loadEventEnd + 100
@@ -151,7 +157,7 @@ describe('Capture hard navigation', function () {
     ])
   })
 
-  it('should populate desination context only for requestStart span', () => {
+  it('should populate destination context only for requestStart span', () => {
     const spans = createNavigationTimingSpans(
       timings,
       timings.fetchStart,
@@ -312,7 +318,7 @@ describe('Capture hard navigation', function () {
   })
 
   it('should capture resource/user timing spans for soft navigation', function () {
-    const unmock = mockGetEntriesByType()
+    const unMock = mockGetEntriesByType()
     const tr = new Transaction('test', ROUTE_CHANGE)
     tr.captureTimings = true
     const xhrSpan = tr.startSpan('GET http://example.com', 'external.http')
@@ -328,11 +334,11 @@ describe('Capture hard navigation', function () {
         span.type === 'app'
     )
     expect(foundSpans.length).toBeGreaterThanOrEqual(3)
-    unmock()
+    unMock()
   })
 
   it('should capture resource/user timings when captureTimings flag is set', function () {
-    const unmock = mockGetEntriesByType()
+    const unMock = mockGetEntriesByType()
     const tr = new Transaction('test', 'test')
     tr.captureTimings = true
     tr._start = transactionStart
@@ -343,7 +349,7 @@ describe('Capture hard navigation', function () {
       span => span.type === 'resource' || span.type === 'app'
     )
     expect(foundSpans.length).toBeGreaterThanOrEqual(2)
-    unmock()
+    unMock()
   })
 
   it('should capture agent marks in page load transaction', function () {
@@ -392,6 +398,25 @@ describe('Capture hard navigation', function () {
     expect(tr.marks.custom.testMark).toEqual(start + markValue)
   })
 
+  // relevant for sampled and unsampled PAGE LOAD transactions:
+  ;[
+    {
+      value: true,
+      description: 'enabled'
+    },
+    {
+      value: false,
+      description: 'disabled'
+    }
+  ].forEach(({ value, description }) => {
+    it(`should set transaction._start to 0 for PAGE_LOAD when captureTimings flag is ${description}`, function () {
+      const tr = new Transaction('test', PAGE_LOAD)
+      tr.captureTimings = value
+      captureNavigation(tr)
+      expect(tr._start).toBe(0)
+    })
+  })
+
   it('should not add API calls as resource timing spans', function () {
     const unMock = mockGetEntriesByType()
     const tr = new Transaction('test', PAGE_LOAD, {
@@ -422,6 +447,105 @@ describe('Capture hard navigation', function () {
       })
     )
   })
+
+  describe('when there is redirection available', () => {
+    it('should create Redirect span when calculating createNavigationTimingSpans', function () {
+      // Add redirect info
+      const timingObj = {
+        ...timings,
+        redirectStart: 1572362095000,
+        redirectEnd: 1572362095181
+      }
+      let spans = createNavigationTimingSpans(
+        timingObj,
+        timingObj.redirectStart,
+        transactionStart,
+        transactionEnd
+      )
+
+      expect(spans.map(mapSpan)).toEqual([
+        { name: 'Redirect', _end: 181, _start: 0 },
+        { name: 'Domain lookup', _end: 201, _start: 182 },
+        { name: 'Making a connection to the server', _end: 269, _start: 201 },
+        {
+          name: 'Requesting and receiving the document',
+          _end: 390,
+          _start: 270
+        },
+        {
+          name: 'Parsing the document, executing sync. scripts',
+          _end: 723,
+          _start: 346
+        },
+        { name: 'Fire "DOMContentLoaded" event', _end: 835, _start: 815 },
+        { name: 'Fire "load" event', _end: 1145, _start: 1143 }
+      ])
+    })
+
+    it('should include the redirect duration when calculating load navigation marks', function () {
+      // Add redirect info
+      const timingObj = {
+        ...timings,
+        redirectStart: 1572362095000,
+        redirectEnd: 1572362095181
+      }
+      const marks = getPageLoadMarks(timingObj)
+      expect(marks.navigationTiming).toEqual(
+        jasmine.objectContaining({
+          responseEnd: 390,
+          domInteractive: 723,
+          domComplete: 1143
+        })
+      )
+    })
+  })
+
+  if (canMockPerfTimingApi()) {
+    describe('baseTime when calculating createNavigationTimingSpans', function () {
+      ;[
+        {
+          name:
+            'should use redirectStart as a baseTime when there is redirection',
+          redirectStart: 1,
+          redirectEnd: 2,
+          expected: 'redirectStart'
+        },
+        {
+          name:
+            'should use fetchStart as a baseTime when there is no redirection',
+          redirectStart: 0,
+          redirectEnd: 0,
+          expected: 'fetchStart'
+        }
+      ].forEach(({ name, redirectStart, redirectEnd, expected }) => {
+        it(name, function () {
+          const unMock = mockPerformanceTimingEntries({
+            redirectStart,
+            redirectEnd
+          })
+
+          const navTimingSpansSpy = spyOnFunction(
+            navTiming,
+            'createNavigationTimingSpans'
+          ).and.callThrough()
+
+          const tr = new Transaction('test', PAGE_LOAD)
+          tr.captureTimings = true
+          tr.end()
+          captureNavigation(tr)
+
+          expect(navTimingSpansSpy).toHaveBeenCalledWith(
+            performance.timing, // timings
+            performance.timing[expected], // baseTime
+            0, // transaction start
+            tr._end // transaction end
+          )
+
+          unMock()
+        })
+      })
+    })
+  }
 
   describe('Buggy Navigation Timing data', () => {
     it('when timestamps are 0-based instead of unix epoch', () => {
